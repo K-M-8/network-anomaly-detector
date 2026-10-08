@@ -69,6 +69,17 @@ The system was evaluated using 20 repeated runs.
 | S2 | 1.000 | **1.000** | 0.00 | 0.00 |
 | S3 | 0.821 | **1.000** | 21.95 | **0.00** |
 
+### Result Visualizations
+
+#### F1 Score Comparison
+![F1 Score Comparison](reports/figures/f1_comparison.png)
+
+#### False Positive Comparison
+![False Positive Comparison](reports/figures/false_positive_comparison.png)
+
+#### Repeated-Run F1 Scores
+![Repeated-Run F1 Scores](reports/figures/repeated_runs_f1.png)
+
 ### Main Result
 
 The largest improvement occurs in **S3**, where the proposed adaptive detector:

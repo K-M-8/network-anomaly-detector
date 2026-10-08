@@ -1,0 +1,15 @@
+network-anomaly-detector/
+|-- app.py
+|-- run_evaluation.py
+|-- requirements.txt
+|-- README.md
+|-- .gitignore
+|-- src/
+|   |-- __init__.py
+|   |-- config.py
+|   |-- detectors.py
+|   |-- traffic.py
+|   |-- evaluate.py
+|-- data/
+|-- results/
+|-- reports/

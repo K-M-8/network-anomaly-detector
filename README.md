@@ -1,68 +1,118 @@
 # Real-Time Network Attack / Anomaly Detector
 
-## Project objective
-Detect suspicious network behaviour in real time and compare a fixed-threshold baseline with an adaptive detector.
+A real-time network anomaly detection system that compares a traditional fixed-threshold detector with a proposed adaptive anomaly detector.
 
-## Proposed novelty
-The proposed detector:
-1. learns a normal traffic profile during warm-up,
-2. adapts the profile using EWMA updates only on normal windows,
-3. calculates z-score based deviations,
-4. combines packet-rate, destination-diversity and failed-connection signals using weights,
-5. exposes thresholds as runtime parameters.
+## Overview
 
-## Scenarios
-- S1: low load
-- S2: medium load
-- S3: high load
+The project detects suspicious network behaviour using traffic-level metadata and compares:
 
-The evaluation uses synthetic traffic so the project can be demonstrated safely and reproducibly without generating real attacks.
+- **Baseline:** fixed threshold-based detection
+- **Proposed:** adaptive EWMA-style learning with weighted z-score anomaly detection
 
-## Setup
-```bash
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# macOS/Linux:
-source .venv/bin/activate
+The system includes a Streamlit dashboard for live simulation, repeated-run evaluation, visualization, and comparison of detection performance.
 
-pip install -r requirements.txt
-```
+## Key Features
 
-## Run dashboard
-```bash
-streamlit run app.py
-```
+- Real-time traffic simulation
+- Baseline vs proposed detector comparison
+- Adaptive anomaly detection
+- EWMA-based traffic profiling
+- Weighted anomaly scoring
+- Runtime threshold controls
+- F1-score, precision and recall evaluation
+- False-positive comparison
+- Repeated-run statistical evaluation
+- Streamlit visualization
+- Optional real packet metadata capture
 
-## Run repeated evaluation
-```bash
-python run_evaluation.py
-```
+## Detection Method
 
+### Baseline Detector
 
-## Optional real-time packet capture
-For an actual network-interface demonstration, install Scapy and (on Windows) Npcap.
-Then run:
-```bash
-python live_capture.py
-```
-Run the terminal with the permissions required by your OS/Npcap setup. The script uses
-packet metadata only: packet rate, unique destination IP count, and TCP SYN count.
-Do not monitor networks you are not authorized to inspect.
+The baseline uses fixed thresholds for:
 
-## Git
-```bash
-git init
-git add .
-git commit -m "Initial network anomaly detector"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/network-anomaly-detector.git
-git push -u origin main
-```
+- Packet rate
+- Destination diversity
+- Failed/TCP connection behaviour
 
-## Rubric mapping
-- Implementation & novelty: baseline + adaptive weighted anomaly score.
-- Performance: S1/S2/S3, repeated runs, mean/SD, F1/precision/recall/FP.
-- Demo: live simulation, baseline vs proposed, runtime parameter controls.
-- Code explanation/viva: modular files and clear pipeline.
-- Project document: methodology, results, graphs, limitations and outcome.
+If a traffic feature exceeds its fixed threshold, an alert is generated.
+
+### Proposed Adaptive Detector
+
+The proposed method:
+
+1. Learns the normal traffic profile during a warm-up period.
+2. Updates the profile using EWMA-style adaptation.
+3. Calculates normalized z-score deviations.
+4. Combines multiple anomaly signals using weighted scoring.
+5. Generates an alert when the final anomaly score exceeds the configured threshold.
+
+This allows the detector to adapt to changing traffic conditions and reduce unnecessary alerts.
+
+## Experimental Scenarios
+
+| Scenario | Description |
+|---|---|
+| S1 | Low-load traffic |
+| S2 | Medium-load traffic |
+| S3 | High-load / highly variable traffic |
+
+The evaluation uses synthetic traffic so that the experiments are safe, reproducible, and do not require generating real attacks.
+
+## Results
+
+The system was evaluated using 20 repeated runs.
+
+| Scenario | Baseline F1 | Proposed F1 | Baseline FP | Proposed FP |
+|---|---:|---:|---:|---:|
+| S1 | 0.997 | **0.999** | 0.00 | 0.05 |
+| S2 | 1.000 | **1.000** | 0.00 | 0.00 |
+| S3 | 0.821 | **1.000** | 21.95 | **0.00** |
+
+### Main Result
+
+The largest improvement occurs in **S3**, where the proposed adaptive detector:
+
+- improves F1-score from **0.821 → 1.000**
+- reduces average false positives from **21.95 → 0.00**
+
+This demonstrates the advantage of adaptive detection under highly variable traffic conditions.
+
+## Dashboard
+
+The Streamlit dashboard provides:
+
+- Scenario selection
+- Adaptive z-threshold control
+- Anomaly-score threshold control
+- Repeated-run configuration
+- Live anomaly-score visualization
+- Baseline and proposed detector decisions
+- Simulation summary
+
+## Project Structure
+
+```text
+network-anomaly-detector/
+│
+├── app.py
+├── live_capture.py
+├── make_graphs.py
+├── run_evaluation.py
+├── requirements.txt
+├── README.md
+│
+├── src/
+│   ├── config.py
+│   ├── detectors.py
+│   ├── evaluate.py
+│   └── traffic.py
+│
+├── results/
+│   ├── f1_comparison.png
+│   ├── false_positive_comparison.png
+│   ├── repeated_runs_f1.png
+│   ├── repeated_runs.csv
+│   └── summary_results.csv
+│
+└── reports/

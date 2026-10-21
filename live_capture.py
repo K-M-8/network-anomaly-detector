@@ -1,8 +1,10 @@
 """Optional live packet-metadata monitor.
 
 Use only on a network/interface you are authorized to monitor.
-It does not inspect payloads. The third feature is TCP SYN count,
-used as a lightweight connection-attempt proxy.
+It does not inspect payloads. The third feature (stored under the
+key "failed_conn") is really the TCP SYN count per window, used as a
+lightweight connection-attempt proxy, not a count of failed connections.
+Thresholds tuned on synthetic data may need re-tuning on real traffic.
 """
 
 import time
@@ -59,6 +61,10 @@ def main():
 
     except KeyboardInterrupt:
         print("\nStopped.")
+    except (PermissionError, OSError) as e:
+        print(f"\nCould not capture packets: {e}")
+        print("Run the terminal as Administrator (Windows) / with sudo "
+              "(Linux/macOS) and make sure Npcap (Windows) is installed.")
 
 if __name__ == "__main__":
     main()

@@ -1,8 +1,12 @@
 import numpy as np
 from .config import (
     BASELINE_RATE, BASELINE_UNIQUE_DST, BASELINE_FAILED_CONN,
-    EWMA_ALPHA, Z_THRESHOLD, ANOMALY_THRESHOLD
+    EWMA_ALPHA, Z_THRESHOLD, ANOMALY_THRESHOLD, WARMUP_WINDOWS, MIN_SPREAD
 )
+
+# Importance of each feature when several features deviate together.
+WEIGHTS = np.array([0.50, 0.30, 0.20])
+
 
 class BaselineDetector:
     """Fixed-threshold detector."""
@@ -19,26 +23,39 @@ class BaselineDetector:
 
 
 class AdaptiveDetector:
-    """Proposed detector: warm-up + EWMA baseline + weighted z-score.
+    """Proposed detector: warm-up + EWMA baseline + z-score scoring.
+
+    Score = max(strongest single-feature signal, weighted combined signal),
+    so one strong feature can raise an alert on its own, and several
+    moderate features can also raise an alert together.
 
     The current window is scored before updating the baseline. Anomalous
     windows are not used to update the baseline, reducing alert masking.
+
+    Known limitations:
+    - The warm-up period is assumed to contain only normal traffic.
+    - After a sudden permanent traffic shift the detector keeps alerting,
+      because alert windows are never used to update the baseline.
     """
 
     def __init__(self, alpha=EWMA_ALPHA, z_threshold=Z_THRESHOLD,
-                 anomaly_threshold=ANOMALY_THRESHOLD, warmup=30):
+                 anomaly_threshold=ANOMALY_THRESHOLD, warmup=WARMUP_WINDOWS):
         self.alpha = alpha
         self.z_threshold = z_threshold
         self.anomaly_threshold = anomaly_threshold
         self.warmup = warmup
-        self.history = []
+        self._warmup_buffer = []   # only used during warm-up, then freed
         self.baseline = None
-        self.spread = None
+        self.var = None
 
     def _initialize(self):
-        x = np.array(self.history, dtype=float)
+        x = np.array(self._warmup_buffer, dtype=float)
         self.baseline = x.mean(axis=0)
-        self.spread = x.std(axis=0) + 1.0
+        self.var = x.var(axis=0)
+        self._warmup_buffer = []   # free memory
+
+    def _spread(self):
+        return np.maximum(np.sqrt(self.var), MIN_SPREAD)
 
     def detect(self, row):
         values = np.array([
@@ -47,21 +64,18 @@ class AdaptiveDetector:
             row["failed_conn"]
         ], dtype=float)
 
-        self.history.append(values)
-
+        # ---- warm-up: collect windows, never alert ----
         if self.baseline is None:
-            if len(self.history) < self.warmup:
+            self._warmup_buffer.append(values)
+            if len(self._warmup_buffer) < self.warmup:
                 return False, 0.0, "learning normal baseline"
             self._initialize()
             return False, 0.0, "baseline initialized"
 
-        z = np.abs((values - self.baseline) / self.spread)
-
-        score = (
-            0.50 * min(z[0] / self.z_threshold, 2.0) +
-            0.30 * min(z[1] / self.z_threshold, 2.0) +
-            0.20 * min(z[2] / self.z_threshold, 2.0)
-        ) / 2.0
+        # ---- scoring ----
+        z = np.abs((values - self.baseline) / self._spread())
+        s = np.minimum(z / self.z_threshold, 2.0) / 2.0   # each in [0, 1]
+        score = float(max(s.max(), (WEIGHTS * s).sum()))
 
         reasons = []
         if z[0] > self.z_threshold:
@@ -73,16 +87,10 @@ class AdaptiveDetector:
 
         alert = score >= self.anomaly_threshold
 
-        # EWMA adaptation happens only for normal windows.
+        # ---- EWMA adaptation only on normal windows ----
         if not alert:
-            old_baseline = self.baseline.copy()
-            self.baseline = (
-                (1 - self.alpha) * self.baseline + self.alpha * values
-            )
-            self.spread = (
-                (1 - self.alpha) * self.spread
-                + self.alpha * np.abs(values - old_baseline)
-            )
-            self.spread = np.maximum(self.spread, 1.0)
+            diff = values - self.baseline
+            self.baseline = self.baseline + self.alpha * diff
+            self.var = (1 - self.alpha) * (self.var + self.alpha * diff ** 2)
 
-        return alert, float(score), "; ".join(reasons) if reasons else "normal"
+        return alert, score, "; ".join(reasons) if reasons else "normal"

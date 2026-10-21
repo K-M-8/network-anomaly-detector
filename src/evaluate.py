@@ -1,7 +1,11 @@
 import numpy as np
 import pandas as pd
+from .config import WARMUP_WINDOWS, Z_THRESHOLD, ANOMALY_THRESHOLD
 from .detectors import BaselineDetector, AdaptiveDetector
 from .traffic import generate_traffic, add_live_like_noise
+
+ALL_SCENARIOS = ("S1", "S2", "S3", "S4", "S5")
+
 
 def metrics(y_true, y_pred):
     y_true = np.asarray(y_true)
@@ -16,11 +20,14 @@ def metrics(y_true, y_pred):
     return {"TP": tp, "TN": tn, "FP": fp, "FN": fn,
             "Precision": precision, "Recall": recall, "F1": f1}
 
-def run_once(scenario, seed=42):
-    df = add_live_like_noise(generate_traffic(scenario, seed=seed), seed=seed+100)
+
+def run_once(scenario, seed=42, z_threshold=Z_THRESHOLD,
+             anomaly_threshold=ANOMALY_THRESHOLD):
+    df = add_live_like_noise(generate_traffic(scenario, seed=seed), seed=seed + 100)
 
     b = BaselineDetector()
-    a = AdaptiveDetector()
+    a = AdaptiveDetector(z_threshold=z_threshold,
+                         anomaly_threshold=anomaly_threshold)
 
     base_pred, prop_pred, scores = [], [], []
     base_reason, prop_reason = [], []
@@ -39,13 +46,20 @@ def run_once(scenario, seed=42):
     df["proposed_reason"] = prop_reason
     return df
 
-def run_repeated(scenarios=("S1","S2","S3"), runs=10):
+
+def run_repeated(scenarios=ALL_SCENARIOS, runs=10,
+                 z_threshold=Z_THRESHOLD, anomaly_threshold=ANOMALY_THRESHOLD):
     rows = []
     for scenario in scenarios:
         for run in range(runs):
-            df = run_once(scenario, seed=42 + run)
-            bm = metrics(df["label"], df["baseline_alert"])
-            pm = metrics(df["label"], df["proposed_alert"])
+            df = run_once(scenario, seed=42 + run,
+                          z_threshold=z_threshold,
+                          anomaly_threshold=anomaly_threshold)
+            # Score only after the warm-up so both detectors are compared
+            # on the same windows.
+            scored = df.iloc[WARMUP_WINDOWS:]
+            bm = metrics(scored["label"], scored["baseline_alert"])
+            pm = metrics(scored["label"], scored["proposed_alert"])
             rows.append({
                 "Scenario": scenario, "Run": run + 1,
                 "Baseline_F1": bm["F1"], "Proposed_F1": pm["F1"],

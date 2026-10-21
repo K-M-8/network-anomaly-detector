@@ -10,6 +10,7 @@ import streamlit as st
 from src.traffic import generate_traffic
 from src.detectors import BaselineDetector, AdaptiveDetector
 from src.evaluate import run_repeated
+from src.config import Z_THRESHOLD, ANOMALY_THRESHOLD
 
 
 st.set_page_config(
@@ -33,14 +34,14 @@ with st.sidebar:
 
     scenario = st.selectbox(
         "Scenario",
-        ["S1", "S2", "S3"]
+        ["S1", "S2", "S3", "S4", "S5"]
     )
 
     z_threshold = st.slider(
         "Adaptive z-threshold",
         1.0,
         4.0,
-        3.0,
+        Z_THRESHOLD,
         0.1
     )
 
@@ -48,7 +49,7 @@ with st.sidebar:
         "Anomaly score threshold",
         0.2,
         0.9,
-        0.55,
+        ANOMALY_THRESHOLD,
         0.05
     )
 
@@ -59,13 +60,20 @@ with st.sidebar:
         20
     )
 
+    speed = st.select_slider(
+        "Playback speed",
+        options=["Normal", "Fast", "Very fast"],
+        value="Fast"
+    )
+    step = {"Normal": 1, "Fast": 3, "Very fast": 6}[speed]
+
     st.divider()
 
     st.info(
-        "Demo configuration\n\n"
-        "Z-threshold: 3.0\n\n"
-        "Anomaly threshold: 0.55\n\n"
-        "Evaluation runs: 20"
+        "Current configuration\n\n"
+        f"Z-threshold: {z_threshold:.1f}\n\n"
+        f"Anomaly threshold: {anomaly_threshold:.2f}\n\n"
+        f"Evaluation runs: {runs}"
     )
 
 
@@ -99,7 +107,7 @@ with tab1:
 
     if start:
 
-        df = generate_traffic(scenario, n=120)
+        df = generate_traffic(scenario, n=300)
 
         base = BaselineDetector()
 
@@ -146,6 +154,11 @@ with tab1:
                 ]
             )
 
+            # Redraw only every `step` windows to keep the demo short.
+            # Both detectors still run on every window.
+            if i % step != 0 and i != len(df):
+                continue
+
             # -----------------------------
             # Current traffic values
             # -----------------------------
@@ -155,15 +168,9 @@ with tab1:
                 0
             )
 
-            destinations = row.get(
-                "dst_diversity",
-                row.get("destinations", "N/A")
-            )
+            destinations = f"{float(row['unique_dst']):.0f}"
 
-            syn_count = row.get(
-                "syn_count",
-                row.get("syn", "N/A")
-            )
+            syn_count = f"{float(row['failed_conn']):.0f}"
 
             # -----------------------------
             # Dashboard
@@ -172,7 +179,7 @@ with tab1:
             with placeholder.container():
 
                 st.markdown(
-                    f"### Traffic Window {i}/120"
+                    f"### Traffic Window {i}/{len(df)}"
                 )
 
                 # Main status cards
@@ -230,43 +237,51 @@ with tab1:
                 ax.plot(
                     live["Window"],
                     live["Score"],
-                    label="Anomaly Score",
-                    linewidth=2
+                    color="tab:blue",
+                    linewidth=2.5,
+                    label="Anomaly Score"
                 )
 
+                # Baseline is drawn slightly lower so it stays visible
+                # when it agrees with the proposed detector.
                 ax.plot(
                     live["Window"],
-                    live["Baseline"].astype(int),
-                    label="Baseline",
-                    linestyle="--"
+                    live["Baseline"].astype(int) - 0.03,
+                    label="Baseline (offset for visibility)",
+                    linestyle="-",
+                    linewidth=2.5,
+                    color="tab:orange"
                 )
 
                 ax.plot(
                     live["Window"],
                     live["Proposed"].astype(int),
                     label="Proposed",
-                    linestyle="--"
+                    linestyle="--",
+                    linewidth=2,
+                    color="tab:green"
                 )
 
                 ax.axhline(
                     anomaly_threshold,
+                    color="tab:purple",
                     linestyle=":",
-                    label="Anomaly Threshold"
+                    linewidth=2,
+                    label=f"Threshold ({anomaly_threshold:.2f})"
                 )
 
                 ax.set_xlabel("Traffic Window")
                 ax.set_ylabel("Score / Decision")
-                ax.set_ylim(-0.05, 1.10)
+                ax.set_xlim(1, len(df))
+                ax.set_ylim(-0.1, 1.4)
                 ax.set_title(
                     "Live Anomaly Score and Detector Decisions"
                 )
-                ax.legend()
-                ax.grid(alpha=0.25)
+                ax.legend(loc="upper left", fontsize=8, ncol=2)
+                ax.grid(True, alpha=0.3)
 
-                st.pyplot(
-                    fig,
-                    clear_figure=True
-                )
+                st.pyplot(fig, clear_figure=True)
+                plt.close(fig)
 
                 # -------------------------
                 # Latest explanation
@@ -293,7 +308,7 @@ with tab1:
             )
 
             # Small delay for live effect
-            time.sleep(0.05)
+            time.sleep(0.02)
 
         progress.empty()
 
@@ -349,7 +364,9 @@ with tab2:
         ):
 
             raw = run_repeated(
-                runs=runs
+                runs=runs,
+                z_threshold=z_threshold,
+                anomaly_threshold=anomaly_threshold
             )
 
         summary = raw.groupby("Scenario").agg(
@@ -447,6 +464,7 @@ with tab2:
             fig,
             clear_figure=True
         )
+        plt.close(fig)
 
         st.markdown("### False Positive Comparison")
 
@@ -491,6 +509,7 @@ with tab2:
             fig2,
             clear_figure=True
         )
+        plt.close(fig2)
 
         st.download_button(
             "Download Raw Results CSV",
@@ -538,12 +557,13 @@ change.
 
 ### Why it is better
 
-The main advantage is visible under **high-load traffic (S3)**,
-where a fixed threshold can interpret legitimate high traffic
-as an attack.
+In these synthetic scenarios the proposed detector gives fewer false
+alarms when normal traffic is already high (S3) or grows slowly (S4),
+and it can catch single-feature attacks that stay below the fixed
+limits (S5).
 
-The proposed detector adapts to the changing traffic profile
-and reduces false positives.
+This depends on a clean warm-up period and on the baseline thresholds
+used here. It is not a claim about real production networks.
 """)
 
     st.subheader("Limitations")
@@ -554,6 +574,9 @@ and reduces false positives.
 - Network monitoring must only be performed on authorized networks.
 - Encrypted payload contents cannot be inspected using these features.
 - Thresholds still require tuning for a real deployment.
+- The warm-up period must contain only normal traffic.
+- After a sudden permanent traffic shift, the adaptive detector keeps
+  alerting because alert windows are not used to update its baseline.
 - The current implementation focuses on traffic metadata rather
   than deep packet inspection.
 """)
@@ -561,9 +584,9 @@ and reduces false positives.
     st.subheader("Demo Configuration")
 
     st.code("""
-Scenario: S1 / S2 / S3
+Scenario: S1 / S2 / S3 / S4 / S5
 Adaptive z-threshold: 3.0
-Anomaly score threshold: 0.55
+Anomaly score threshold: 0.60
 Repeated evaluation runs: 20
-Live simulation windows: 120
+Live simulation windows: 300
     """)

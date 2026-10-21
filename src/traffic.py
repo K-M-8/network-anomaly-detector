@@ -44,8 +44,30 @@ def generate_traffic(scenario="S1", n=300, seed=RANDOM_SEED):
         failed_conn[idx] += 10
         labels[idx] = 1
 
+    elif scenario == "S4":
+        # Gradual legitimate load growth (slow drift) after the warm-up,
+        # followed by a real attack on top of the grown load.
+        ramp = np.clip((t - 40) / 160, 0, 1)          # 0 -> 1 between t=40 and t=200
+        packet_rate += 40 * ramp
+        unique_dst += 8 * ramp
+        failed_conn += 3 * ramp
+        idx = slice(220, 255)
+        packet_rate[idx] += 60
+        unique_dst[idx] += 12
+        failed_conn[idx] += 9
+        labels[idx] = 1
+
+    elif scenario == "S5":
+        # Single-feature attacks (only one metric deviates at a time).
+        idx1 = slice(100, 130)          # quiet packet-rate rise, stays below fixed limit
+        packet_rate[idx1] += 30
+        labels[idx1] = 1
+        idx2 = slice(190, 220)          # connection-attempt burst only
+        failed_conn[idx2] += 15
+        labels[idx2] = 1
+
     else:
-        raise ValueError("Scenario must be S1, S2 or S3")
+        raise ValueError("Scenario must be S1, S2, S3, S4 or S5")
 
     return pd.DataFrame({
         "time": t,

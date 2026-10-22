@@ -34,9 +34,9 @@ plt.bar([i + width/2 for i in x], summary["Proposed_F1_mean"],
 plt.xticks(list(x), LABELS)
 plt.ylabel("F1 Score")
 plt.xlabel("Scenario")
-plt.ylim(0, 1.1)
+plt.ylim(0, 1.2)
 plt.title("Baseline vs Proposed F1 Score")
-plt.legend()
+plt.legend(loc="upper center", ncol=2)
 plt.tight_layout()
 plt.savefig(FIGURES / "f1_comparison.png", dpi=300)
 plt.close()
@@ -56,22 +56,39 @@ plt.tight_layout()
 plt.savefig(FIGURES / "false_positive_comparison.png", dpi=300)
 plt.close()
 
-# 3. F1 across all repeated runs
-plt.figure(figsize=(12, 6))
-for scenario in SCENARIOS:
+# 3. F1 across all repeated runs (one panel per scenario)
+runs = sorted(df["Run"].unique())
+ticks = [r for r in runs if r == 1 or r % 5 == 0]
+
+fig, axes = plt.subplots(2, 3, figsize=(13, 7), sharex=True, sharey=True)
+axes = axes.flatten()
+
+for ax, scenario, label in zip(axes, SCENARIOS, LABELS):
     part = df[df["Scenario"] == scenario]
-    plt.plot(part["Run"], part["Baseline_F1"], marker="o",
-             label=f"{scenario} Baseline")
-    plt.plot(part["Run"], part["Proposed_F1"], marker="o",
-             linestyle="--", label=f"{scenario} Proposed")
-plt.xlabel("Run")
-plt.ylabel("F1 Score")
-plt.title("F1 Score Across Repeated Runs")
-plt.ylim(0, 1.05)
-plt.legend(ncol=2, fontsize=8)
-plt.tight_layout()
-plt.savefig(FIGURES / "repeated_runs_f1.png", dpi=300)
-plt.close()
+    ax.plot(part["Run"], part["Baseline_F1"], marker="o", markersize=4,
+            color="tab:blue", label="Baseline")
+    ax.plot(part["Run"], part["Proposed_F1"], marker="o", markersize=4,
+            linestyle="--", color="tab:orange", label="Proposed")
+    ax.set_title(label)
+    ax.set_ylim(0, 1.05)
+    ax.set_xticks(ticks)
+    ax.grid(alpha=0.25)
+
+# Sixth panel holds the legend
+axes[5].axis("off")
+handles, labels = axes[0].get_legend_handles_labels()
+axes[5].legend(handles, labels, loc="center", fontsize=12)
+
+for ax in axes[2:5]:
+    ax.set_xlabel("Run")
+    ax.tick_params(labelbottom=True)
+axes[0].set_ylabel("F1 Score")
+axes[3].set_ylabel("F1 Score")
+
+fig.suptitle("F1 Score Across Repeated Runs")
+fig.tight_layout()
+fig.savefig(FIGURES / "repeated_runs_f1.png", dpi=300)
+plt.close(fig)
 
 # Save a clean summary table
 summary.round(3).to_csv(RESULTS / "summary_results.csv")

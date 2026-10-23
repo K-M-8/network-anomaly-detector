@@ -114,6 +114,7 @@ The Streamlit dashboard provides:
 network-anomaly-detector/
 ├── app.py
 ├── live_capture.py
+├── replay_pcap.py
 ├── make_graphs.py
 ├── run_evaluation.py
 ├── requirements.txt
@@ -125,7 +126,8 @@ network-anomaly-detector/
 │   ├── evaluate.py
 │   └── traffic.py
 ├── tests/
-│   └── test_detectors.py
+│   ├── test_detectors.py
+│   └── test_replay.py
 ├── results/                 (generated locally by run_evaluation.py, not committed)
 └── reports/
     ├── figures/
@@ -171,6 +173,7 @@ python make_graphs.py
 
 ```powershell
 python tests/test_detectors.py
+python tests/test_replay.py
 ```
 
 ## Optional Live Packet Capture

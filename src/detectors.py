@@ -21,13 +21,12 @@ class BaselineDetector:
             reasons.append("many failed connections")
         return bool(reasons), "; ".join(reasons) if reasons else "normal"
 
-
 class AdaptiveDetector:
     """Proposed detector: warm-up + EWMA baseline + z-score scoring.
 
     Score = max(strongest single-feature signal, weighted combined signal),
-    so one strong feature can raise an alert on its own, and several
-    moderate features can also raise an alert together.
+    so one strong feature can raise an alert on its own. The weights sum to 1,
+    so the combined signal never exceeds the strongest one (weights inactive).
 
     The current window is scored before updating the baseline. Anomalous
     windows are not used to update the baseline, reducing alert masking.
@@ -37,7 +36,6 @@ class AdaptiveDetector:
     - After a sudden permanent traffic shift the detector keeps alerting,
       because alert windows are never used to update the baseline.
     """
-
     def __init__(self, alpha=EWMA_ALPHA, z_threshold=Z_THRESHOLD,
                  anomaly_threshold=ANOMALY_THRESHOLD, warmup=WARMUP_WINDOWS):
         self.alpha = alpha

@@ -1,15 +1,21 @@
 network-anomaly-detector/
 |-- app.py
+|-- live_capture.py
+|-- replay_pcap.py
+|-- make_graphs.py
 |-- run_evaluation.py
 |-- requirements.txt
 |-- README.md
-|-- .gitignore
 |-- src/
 |   |-- __init__.py
 |   |-- config.py
 |   |-- detectors.py
 |   |-- traffic.py
 |   |-- evaluate.py
-|-- data/
-|-- results/
+|-- tests/
+|   |-- test_detectors.py
+|   |-- test_replay.py
+|-- results/        (generated locally, not committed)
 |-- reports/
+|   |-- figures/
+|   |-- project_structure.txt
